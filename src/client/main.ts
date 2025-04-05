@@ -4,15 +4,16 @@ const local_storage = require('glov/client/local_storage');
 local_storage.setStoragePrefix('ld57'); // Before requiring anything else that might load from this
 
 const GAME_OVER = 25;
-// const VICTORY = 12;
+const VICTORY = 12;
 
 import assert from 'assert';
 import { autoAtlas } from 'glov/client/autoatlas';
 import { platformParameterGet } from 'glov/client/client_config';
 import * as engine from 'glov/client/engine';
-import { ALIGN, vec4ColorFromIntColor } from 'glov/client/font';
+import { ALIGN, fontStyle, vec4ColorFromIntColor } from 'glov/client/font';
 import { Box } from 'glov/client/geom_types';
 import {
+  eatAllInput,
   keyDownEdge,
   KEYS,
   mouseDownAnywhere,
@@ -24,13 +25,19 @@ import { spot, SPOT_DEFAULT_BUTTON } from 'glov/client/spot';
 import { spriteSetGet } from 'glov/client/sprite_sets';
 import { spriteClipPop, spriteClipPush } from 'glov/client/sprites';
 import {
+  buttonImage,
   drawHBox,
+  drawRect,
   scaleSizes,
+  setButtonHeight,
   setFontHeight,
+  uiButtonHeight,
   uiGetFont,
+  uiTextHeight,
 } from 'glov/client/ui';
 import { randCreate, shuffleArray } from 'glov/common/rand_alea';
-import { clone, easeIn, easeInOut, easeOut, ridx } from 'glov/common/util';
+import { TSMap } from 'glov/common/types';
+import { clone, easeIn, easeInOut, easeOut, lerp, ridx, tweenBounceOut } from 'glov/common/util';
 import {
   JSVec2,
   v2dist,
@@ -48,7 +55,7 @@ const palette = palette_font.map((c) => {
   return vec4ColorFromIntColor(vec4(), c);
 });
 
-const { abs, max, floor } = Math;
+const { abs, max, min, floor, sin, PI } = Math;
 
 window.Z = window.Z || {};
 Z.BACKGROUND = 1;
@@ -131,6 +138,7 @@ class GameState {
     this.held = b;
   }
   consume(move: 'auto' | 'down'): ['both'|'right', string, number[]] {
+    this.last_columns = null;
     let counts = [0,0,0,0];
     let column = this.columns[0];
     for (let ii = 0; ii < column.length; ++ii) {
@@ -155,6 +163,7 @@ class GameState {
     } else {
       this.count_bad++;
       if (count_white) {
+        this.count_bad++;
         msg = 'Impure!';
       } else {
         msg = 'Waste removed';
@@ -172,6 +181,34 @@ class GameState {
 
     return [result, msg, row];
   }
+
+  shouldConsume(): boolean {
+    let c0 = this.columns[0];
+    let all_white = true;
+    let all_other = true;
+    for (let ii = 0; ii < c0.length; ++ii) {
+      if (c0[ii] === 1) {
+        all_other = false;
+      } else {
+        all_white = false;
+      }
+    }
+    return all_white || all_other;
+  }
+
+  last_columns: null | number[][] = null;
+  did_save_state = false;
+  saveState(): void {
+    this.last_columns = clone(this.columns);
+    this.did_save_state = true;
+  }
+
+  undo(): void {
+    if (this.last_columns) {
+      this.columns = this.last_columns;
+      this.last_columns = null;
+    }
+  }
 }
 
 let game_state: GameState;
@@ -186,12 +223,28 @@ const XADV = ORB_DIM + ORB_XPAD;
 const YADV = ORB_DIM + ORB_YPAD;
 const BOARD_X = floor((game_width - (ORB_DIM * COLUMNS + ORB_XPAD * (COLUMNS - 1))) / 2);
 const BOARD_Y = floor((game_height - (ORB_DIM * ROWS_TALL + ORB_YPAD * (ROWS_TALL - 1))) / 2);
+const BOARD_Y1 = BOARD_Y + YADV * 6 - ORB_YPAD;
+const BOARD_X1 = BOARD_X + XADV * 7 - ORB_XPAD;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let board_anim: any = null;
+type Tween = {
+  dx: number;
+  dy: number;
+  t: number;
+};
+let tweens: TSMap<Tween[]> = {};
+
+let board_anim: null | {
+  t: number;
+  style: 'both' | 'right';
+  column: number[];
+  row: number[];
+} = null;
 let messages: { msg: string; t: number }[] = [];
 let mouse_pos = vec2();
 let idx_to_pos: Box[][] = [];
+let blink = 0;
+let grinder_anim_h = 0;
+let grinder_anim_v = 0;
 function statePlay(dt: number): void {
   gl.clearColor(palette[0][0], palette[0][1], palette[0][2], 1);
   let font = uiGetFont();
@@ -263,12 +316,39 @@ function statePlay(dt: number): void {
       drawHBox(param, autoAtlas('gfx', 'bar'));
     }
   }
+  if (count_good === VICTORY) {
+    font.draw({
+      size: uiTextHeight() * 2,
+      style: fontStyle(null, {
+        color: palette_font[3],
+        outline_color: palette_font[1],
+        outline_width: 5,
+      }),
+      x: 0, y: 1,
+      w: game_width, h: game_height,
+      z: 500,
+      align: ALIGN.HVCENTER,
+      text: 'YOU WIN',
+    });
+    drawRect(game_width * 0.15, game_height * 0.4, game_width * (1 - 0.15), game_height * (1 - 0.4), 499, palette[0]);
+    eatAllInput();
+  }
   if (count_good) {
     let y1 = frame_y + 77 - 9;
     for (let ii = 0; ii < count_good; ++ii) {
+      let y = y1 - ii * 5;
+      let x = frame_x + 3;
+      if (board_anim && board_anim.style === 'both' && ii === count_good - 1) {
+        if (board_anim.t < 0.5) {
+          continue;
+        }
+        let p = board_anim.t * 2 - 1;
+        y = lerp(tweenBounceOut(min(1, p * (1 + ii*0.1))), BOARD_Y - 8, y);
+        x = lerp(easeOut(min(1, p * 20), 2), x + 8, x);
+      }
       autoAtlas('gfx', 'output').draw({
-        x: frame_x + 3,
-        y: y1 - ii * 5,
+        x,
+        y,
         w: 8,
         h: 5,
         z: Z.UI + 12,
@@ -333,6 +413,26 @@ function statePlay(dt: number): void {
         w: ORB_DIM,
         h: ORB_DIM,
       };
+      let bounds_pre_tween: Box | null = null;
+      let tween = tweens[`${ii},${jj}`];
+      if (tween) {
+        for (let kk = tween.length - 1; kk >= 0; --kk) {
+          let elem = tween[kk];
+          elem.t += dt * 0.01;
+          if (elem.t >= 1) {
+            ridx(tween, kk);
+            continue;
+          }
+          if (!bounds_pre_tween) {
+            bounds_pre_tween = {
+              ...bounds,
+            };
+          }
+          bounds.x += floor((1 - elem.t) * elem.dx * XADV);
+          bounds.y += floor((1 - elem.t) * elem.dy * YADV / 2);
+        }
+      }
+
       pos_column[jj] = bounds;
       autoAtlas('gfx', `orb${cell}`).draw(bounds);
       let up_idx = is_short ? jj : jj - 1;
@@ -340,13 +440,13 @@ function statePlay(dt: number): void {
       let down = right?.[up_idx+1];
       if (moves(cell, up, true)) {
         autoAtlas('gfx', 'connect_up').draw({
-          ...bounds,
+          ...(bounds_pre_tween || bounds),
           w: 10,
         });
       }
       if (moves(cell, down, false)) {
         autoAtlas('gfx', 'connect_down').draw({
-          ...bounds,
+          ...(bounds_pre_tween || bounds),
           w: 10,
         });
       }
@@ -361,12 +461,38 @@ function statePlay(dt: number): void {
   assert(closest_idx);
   const ANYWHERE = { x: -Infinity, y: -Infinity, w: Infinity, h: Infinity };
   let is_mouse_down = mouseDownAnywhere();
+  if (!is_mouse_down) {
+    game_state.did_save_state = false;
+  }
   if (closest_dist < 6) {
 
     if (mouseDownEdge(ANYWHERE)) {
       game_state.held = closest_idx;
     }
     if (game_state.held && is_mouse_down && game_state.canSwap(closest_idx)) {
+      // calc tweening
+      let is_from_short = columns[game_state.held[0]].length === ROWS_SHORT;
+      let dx = closest_idx[0] - game_state.held[0];
+      let dy = (closest_idx[1] - game_state.held[1]) || (is_from_short ? -1 : 1);
+      let src_key = game_state.held.join(',');
+      let dst_key = closest_idx.join(',');
+      let t = tweens[src_key] || [];
+      tweens[src_key] = tweens[dst_key] || [];
+      tweens[src_key].push({
+        t: 0,
+        dx,
+        dy,
+      });
+      tweens[dst_key] = t;
+      t.push({
+        t: 0,
+        dx: -dx,
+        dy: -dy,
+      });
+
+      if (!game_state.did_save_state) {
+        game_state.saveState();
+      }
       game_state.swap(closest_idx);
     }
 
@@ -395,13 +521,81 @@ function statePlay(dt: number): void {
   let is_first_short = columns[0].length === ROWS_SHORT;
   autoAtlas('gfx', 'bottom_guard').draw({
     x: board_x - 12 + (is_first_short ? -XADV : 0),
-    y: BOARD_Y + YADV * 6 - 6,
+    y: BOARD_Y1 - 4,
     w: 86,
     h: 6,
     z: Z.UI + 10,
   });
 
   spriteClipPop();
+
+  const GRIND_RATE = 0.01;
+  {
+    let grind_anim_down = board_anim && board_anim.style === 'both';
+    let grinder_x_base = frame_x + 6;
+    if (grind_anim_down) {
+      grinder_anim_h += dt * GRIND_RATE;
+      grinder_anim_h %= PI * 2;
+    } else {
+      if (grinder_anim_h > 0) {
+        grinder_anim_h = min(grinder_anim_h + dt * GRIND_RATE, PI);
+      }
+    }
+    let grinder_x = grinder_x_base + sin(grinder_anim_h) * 4;
+    autoAtlas('gfx', 'grinder_h1').draw({
+      x: grinder_x,
+      y: BOARD_Y1 + 2,
+      w: 69,
+      h: 5,
+      z: 110,
+    });
+    grinder_x = grinder_x_base + sin(grinder_anim_h - PI*0.65) * 4;
+    autoAtlas('gfx', 'grinder_h2').draw({
+      x: grinder_x,
+      y: BOARD_Y1 + 2,
+      w: 69,
+      h: 5,
+      z: 110 - 0.1,
+    });
+  }
+  {
+    let grind_anim_side = board_anim;
+    let grinder_y_base = frame_y + 6;
+    if (grind_anim_side) {
+      grinder_anim_v += dt * GRIND_RATE;
+      grinder_anim_v %= PI * 2;
+    } else {
+      if (grinder_anim_v > 0) {
+        grinder_anim_v = min(grinder_anim_v + dt * GRIND_RATE, PI);
+      }
+    }
+    let grinder_y = grinder_y_base + sin(grinder_anim_v) * 4;
+    autoAtlas('gfx', 'grinder_v1').draw({
+      x: BOARD_X1 + 2,
+      y: grinder_y,
+      w: 5,
+      h: 69,
+      z: 110,
+    });
+    grinder_y = grinder_y_base + sin(grinder_anim_v - PI*0.65) * 4;
+    autoAtlas('gfx', 'grinder_v2').draw({
+      x: BOARD_X1 + 2,
+      y: grinder_y,
+      w: 5,
+      h: 69,
+      z: 110 - 0.1,
+    });
+  }
+
+  if (buttonImage({
+    img: autoAtlas('gfx', 'undo'),
+    x: 1,
+    y: game_height - uiButtonHeight() - 1,
+    shrink: 1,
+    hotkey: KEYS.Z,
+  })) {
+    game_state.undo();
+  }
 
   let power_pos = {
     x: frame_x + 10,
@@ -422,7 +616,15 @@ function statePlay(dt: number): void {
     hotkey: KEYS.SPACE,
     disabled: Boolean(board_anim),
   });
-  if (spot_ret.focused) {
+  let do_blink = false;
+  if (game_state.shouldConsume()) {
+    blink += dt * 0.003;
+    blink %= 1;
+    do_blink = blink < 0.3;
+  } else {
+    blink = 0;
+  }
+  if (spot_ret.focused || do_blink) {
     autoAtlas('gfx', 'power_full').draw({
       ...power_pos,
       z: Z.UI + 12,
@@ -434,18 +636,20 @@ function statePlay(dt: number): void {
     do_consume = 'down';
   }
   if (do_consume) {
+    tweens = {};
     board_anim = {
       t: 0,
       column: game_state.columns[0],
-      board: clone(game_state.columns),
+      style: null!,
+      row: null!,
     };
     let [style, msg, row] = game_state.consume(do_consume);
     messages.push({
       msg,
       t: 0,
     });
-    board_anim.style = style;
-    board_anim.row = row;
+    board_anim!.style = style;
+    board_anim!.row = row;
   }
 }
 
@@ -495,6 +699,7 @@ export function main(): void {
   // Perfect sizes for pixely modes
   scaleSizes(13 / 32);
   setFontHeight(8);
+  setButtonHeight(9);
 
   init();
 

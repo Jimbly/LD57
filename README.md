@@ -12,6 +12,8 @@ Acknowledgements:
 Start with: `npm start` (after running `npm i` once)
 
 Polish:
+* If there are 2 or fewer white remaining after clearing, give a new board? (and don't shouldConsume on non-white)
+  * Conservation of white and try to remove 100% / some quota to get new board?  Nice that clearing waste gives more options though
 * Tap-select-tap-swap controls
 
 Plan
