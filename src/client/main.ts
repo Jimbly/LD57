@@ -8,8 +8,10 @@ const VICTORY = 12;
 
 import assert from 'assert';
 import { autoAtlas } from 'glov/client/autoatlas';
+import * as camera2d from 'glov/client/camera2d';
 import { platformParameterGet } from 'glov/client/client_config';
 import * as engine from 'glov/client/engine';
+import { getFrameTimestamp } from 'glov/client/engine';
 import { ALIGN, fontStyle, vec4ColorFromIntColor } from 'glov/client/font';
 import { Box } from 'glov/client/geom_types';
 import {
@@ -23,11 +25,12 @@ import {
 import { netInit } from 'glov/client/net';
 import { spot, SPOT_DEFAULT_BUTTON } from 'glov/client/spot';
 import { spriteSetGet } from 'glov/client/sprite_sets';
-import { spriteClipPop, spriteClipPush } from 'glov/client/sprites';
+import { Sprite, spriteClipPop, spriteClipPush, spriteCreate } from 'glov/client/sprites';
 import {
   buttonImage,
   drawHBox,
   drawRect,
+  playUISound,
   scaleSizes,
   setButtonHeight,
   setFontHeight,
@@ -62,8 +65,8 @@ Z.BACKGROUND = 1;
 Z.SPRITES = 10;
 
 // Virtual viewport for our game logic
-const game_width = 128;
-const game_height = 128;
+const game_width = 96;
+const game_height = 96;
 
 const COLUMNS = 7;
 const ROWS_TALL = 6;
@@ -211,9 +214,33 @@ class GameState {
   }
 }
 
+let last_swap_time = 0;
+let last_swap_up = false;
+let last_swap_idx = 0;
+function playSwap(up: boolean): void {
+  let now = getFrameTimestamp();
+  if (now - last_swap_time < 1000 && last_swap_up === up) {
+    ++last_swap_idx;
+  } else {
+    last_swap_idx = 1;
+  }
+  last_swap_idx = min(last_swap_idx, 8);
+  last_swap_up = up;
+  last_swap_time = now;
+  playUISound(`${up ? 'up' : 'down'}${last_swap_idx}`);
+}
+
+let bg: Sprite;
+let mask: Sprite;
 let game_state: GameState;
 function init(): void {
   game_state = new GameState();
+  bg = spriteCreate({
+    name: 'bg',
+  });
+  mask = spriteCreate({
+    name: 'mask',
+  });
 }
 
 const ORB_DIM = 8;
@@ -221,11 +248,41 @@ const ORB_XPAD = 1;
 const ORB_YPAD = 2;
 const XADV = ORB_DIM + ORB_XPAD;
 const YADV = ORB_DIM + ORB_YPAD;
-const BOARD_X = floor((game_width - (ORB_DIM * COLUMNS + ORB_XPAD * (COLUMNS - 1))) / 2);
-const BOARD_Y = floor((game_height - (ORB_DIM * ROWS_TALL + ORB_YPAD * (ROWS_TALL - 1))) / 2);
+const BOARD_X = floor((game_width - (ORB_DIM * COLUMNS + ORB_XPAD * (COLUMNS - 1))) / 2) + 2;
+const BOARD_Y = floor((game_height - (ORB_DIM * ROWS_TALL + ORB_YPAD * (ROWS_TALL - 1))) / 2) + 4;
 const BOARD_Y1 = BOARD_Y + YADV * 6 - ORB_YPAD;
 const BOARD_X1 = BOARD_X + XADV * 7 - ORB_XPAD;
 
+let bg_offs = [0, 0];
+function drawBG(dx: number, dy: number): void {
+  let x = floor(camera2d.x0Real());
+  let y = floor(camera2d.y0Real());
+  let h = camera2d.hReal() + 2;
+  let w = camera2d.wReal() + 2;
+  let uoffs1 = (bg_offs[0] - dx + x) / 128;
+  let voffs1 = (bg_offs[1] - dy + y) / 128;
+  bg.draw({
+    x, y, w, h,
+    uvs: [
+      uoffs1, voffs1,
+      w/128 + uoffs1, h/128 + voffs1,
+    ],
+    z: 1,
+  });
+  let uoffs = floor(getFrameTimestamp() * 0.01) / 128;
+  let voffs = floor(getFrameTimestamp() * 0.013) / 128;
+  if (0) {
+    mask.draw({
+      x, y, w, h,
+      uvs: [
+        uoffs, voffs,
+        w/128 + uoffs, h/128 + voffs
+      ],
+      z: 2,
+    });
+  }
+  drawRect(BOARD_X - 2, BOARD_Y - 2, BOARD_X1 + 1, BOARD_Y1 + 1, 3, palette[0]);
+}
 type Tween = {
   dx: number;
   dy: number;
@@ -246,6 +303,7 @@ let blink = 0;
 let grinder_anim_h = 0;
 let grinder_anim_v = 0;
 function statePlay(dt: number): void {
+  camera2d.setAspectFixedRespectPixelPerfect(game_width, game_height);
   gl.clearColor(palette[0][0], palette[0][1], palette[0][2], 1);
   let font = uiGetFont();
 
@@ -262,27 +320,36 @@ function statePlay(dt: number): void {
       continue;
     }
     font.draw({
-      color: palette_font[3],
-      x: board_x + ORB_DIM/2, y: frame_y - 9 - floor(easeOut(m.t, 2) * 24),
+      style: fontStyle(null, {
+        color: palette_font[3],
+        outline_color: palette_font[0],
+        outline_width: 5,
+      }),
+      x: board_x + ORB_DIM/2,
+      y: frame_y - 8 - floor(easeIn(m.t, 2) * 64),
       align: ALIGN.HCENTER,
       text: m.msg,
       z: Z.UI + 30,
     });
   }
 
+  let board_xoffs = 0;
+  let board_yoffs = 0;
   if (board_anim) {
     board_anim.t += dt/1000;
     if (board_anim.t >= 1) {
       board_anim = null;
     } else {
-      let xoffs = XADV - floor(XADV * easeIn(board_anim.t, 2));
-      board_x += xoffs;
+      board_xoffs = XADV - floor(XADV * easeIn(board_anim.t, 2));
+      board_x += board_xoffs;
       if (board_anim.style === 'both') {
-        let yoffs = YADV - floor(YADV * board_anim.t);
-        board_y += yoffs;
+        board_yoffs = YADV - floor(YADV * board_anim.t);
+        board_y += board_yoffs;
       }
     }
   }
+
+  drawBG(board_xoffs, board_yoffs);
 
   autoAtlas('gfx', 'frame').draw({
     x: frame_x,
@@ -330,7 +397,7 @@ function statePlay(dt: number): void {
       align: ALIGN.HVCENTER,
       text: 'YOU WIN',
     });
-    drawRect(game_width * 0.15, game_height * 0.4, game_width * (1 - 0.15), game_height * (1 - 0.4), 499, palette[0]);
+    drawRect(2, (game_height - 20)/2, game_width - 2, (game_height + 20) / 2, 499, palette[0]);
     eatAllInput();
   }
   if (count_good) {
@@ -474,6 +541,7 @@ function statePlay(dt: number): void {
       let is_from_short = columns[game_state.held[0]].length === ROWS_SHORT;
       let dx = closest_idx[0] - game_state.held[0];
       let dy = (closest_idx[1] - game_state.held[1]) || (is_from_short ? -1 : 1);
+      playSwap(dy < 0);
       let src_key = game_state.held.join(',');
       let dst_key = closest_idx.join(',');
       let t = tweens[src_key] || [];
@@ -532,65 +600,81 @@ function statePlay(dt: number): void {
   const GRIND_RATE = 0.01;
   {
     let grind_anim_down = board_anim && board_anim.style === 'both';
-    let grinder_x_base = frame_x + 6;
-    if (grind_anim_down) {
-      grinder_anim_h += dt * GRIND_RATE;
-      grinder_anim_h %= PI * 2;
-    } else {
-      if (grinder_anim_h > 0) {
-        grinder_anim_h = min(grinder_anim_h + dt * GRIND_RATE, PI);
-      }
-    }
-    let grinder_x = grinder_x_base + sin(grinder_anim_h) * 4;
+    let grinder_x_base = frame_x + 4;
+    grinder_anim_h += dt * GRIND_RATE * (grind_anim_down ? 1 : 0.06);
+    grinder_anim_h %= PI * 2;
+    let grinder_x = floor(grinder_x_base + sin(grinder_anim_h) * 4);
     autoAtlas('gfx', 'grinder_h1').draw({
       x: grinder_x,
       y: BOARD_Y1 + 2,
-      w: 69,
-      h: 5,
+      w: 71,
+      h: 6,
       z: 110,
     });
-    grinder_x = grinder_x_base + sin(grinder_anim_h - PI*0.65) * 4;
+    autoAtlas('gfx', 'grinder_hshadow').draw({
+      x: grinder_x,
+      y: BOARD_Y1 + 2,
+      w: 71,
+      h: 6,
+      z: 110 - 0.2,
+    });
+    grinder_x = floor(grinder_x_base + sin(grinder_anim_h - PI*0.65) * 4);
     autoAtlas('gfx', 'grinder_h2').draw({
       x: grinder_x,
       y: BOARD_Y1 + 2,
-      w: 69,
-      h: 5,
+      w: 71,
+      h: 6,
       z: 110 - 0.1,
+    });
+    autoAtlas('gfx', 'grinder_hshadow').draw({
+      x: grinder_x,
+      y: BOARD_Y1 + 2,
+      w: 71,
+      h: 6,
+      z: 110 - 0.2,
     });
   }
   {
     let grind_anim_side = board_anim;
-    let grinder_y_base = frame_y + 6;
-    if (grind_anim_side) {
-      grinder_anim_v += dt * GRIND_RATE;
-      grinder_anim_v %= PI * 2;
-    } else {
-      if (grinder_anim_v > 0) {
-        grinder_anim_v = min(grinder_anim_v + dt * GRIND_RATE, PI);
-      }
-    }
-    let grinder_y = grinder_y_base + sin(grinder_anim_v) * 4;
+    let grinder_y_base = frame_y + 2;
+    grinder_anim_v += dt * GRIND_RATE * (grind_anim_side ? 1 : 0.06);
+    grinder_anim_v %= PI * 2;
+    let grinder_y = floor(grinder_y_base + sin(grinder_anim_v) * 4);
     autoAtlas('gfx', 'grinder_v1').draw({
       x: BOARD_X1 + 2,
       y: grinder_y,
-      w: 5,
-      h: 69,
+      w: 6,
+      h: 71,
       z: 110,
     });
-    grinder_y = grinder_y_base + sin(grinder_anim_v - PI*0.65) * 4;
+    autoAtlas('gfx', 'grinder_vshadow').draw({
+      x: BOARD_X1 + 2,
+      y: grinder_y,
+      w: 6,
+      h: 71,
+      z: 110 - 0.2,
+    });
+    grinder_y = floor(grinder_y_base + sin(grinder_anim_v - PI*0.65) * 4);
     autoAtlas('gfx', 'grinder_v2').draw({
       x: BOARD_X1 + 2,
       y: grinder_y,
-      w: 5,
-      h: 69,
+      w: 6,
+      h: 71,
       z: 110 - 0.1,
+    });
+    autoAtlas('gfx', 'grinder_vshadow').draw({
+      x: BOARD_X1 + 2,
+      y: grinder_y,
+      w: 6,
+      h: 71,
+      z: 110 - 0.2,
     });
   }
 
-  if (buttonImage({
+  if (game_state.last_columns && buttonImage({
     img: autoAtlas('gfx', 'undo'),
-    x: 1,
-    y: game_height - uiButtonHeight() - 1,
+    x: camera2d.x0() + 1,
+    y: camera2d.y1() - uiButtonHeight() - 1,
     shrink: 1,
     hotkey: KEYS.Z,
   })) {
@@ -650,6 +734,10 @@ function statePlay(dt: number): void {
     });
     board_anim!.style = style;
     board_anim!.row = row;
+    bg_offs[0] += XADV;
+    if (style === 'both') {
+      bg_offs[1] += YADV;
+    }
   }
 }
 
@@ -662,11 +750,11 @@ export function main(): void {
   const font_info_04b03x2 = require('./img/font/04b03_8x2.json');
   const font_info_04b03x1 = require('./img/font/04b03_8x1.json');
   const font_info_palanquin32 = require('./img/font/palanquin32.json');
-  let pixely = 'strict';
+  let pixely = 'on';
   let font_def;
   let ui_sprites;
-  let pixel_perfect = 0;
-  if (pixely === 'strict') {
+  let pixel_perfect = 1;
+  if (pixely === 'strict' || true) {
     font_def = { info: font_info_04b03x1, texture: 'font/04b03_8x1' };
     ui_sprites = spriteSetGet('pixely');
     pixel_perfect = 1;
@@ -689,6 +777,24 @@ export function main(): void {
     border_color: palette[0],
     border_clear_color: palette[0],
     do_borders: false,
+    ui_sounds: {
+      up1: 'up1',
+      up2: 'up2',
+      up3: 'up3',
+      up4: 'up4',
+      up5: 'up5',
+      up6: 'up6',
+      up7: 'up7',
+      up8: 'up8',
+      down1: 'down1',
+      down2: 'down2',
+      down3: 'down3',
+      down4: 'down4',
+      down5: 'down5',
+      down6: 'down6',
+      down7: 'down7',
+      down8: 'down8',
+    },
   })) {
     return;
   }
