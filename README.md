@@ -12,15 +12,14 @@ Acknowledgements:
 Start with: `npm start` (after running `npm i` once)
 
 TODO
+* If there are 2 or fewer white remaining after clearing, give a new board? (and don't shouldConsume on non-white)
+  * Conservation of white and try to remove 100% / some quota to get new board?  Nice that clearing waste gives more options though
 * display score at end
 * music
-* SFX
 * high score list
 * particles from grinders
 
 Polish:
-* If there are 2 or fewer white remaining after clearing, give a new board? (and don't shouldConsume on non-white)
-  * Conservation of white and try to remove 100% / some quota to get new board?  Nice that clearing waste gives more options though
 * Tap-select-tap-swap controls
 
 Plan
@@ -33,7 +32,11 @@ Plan
   * reach a depth of 12 in a minimum number of consumptions
 
 Sound banks:
-00 - button press - speed 0x50?
+00 - button press - speed 0x50
+03 - rollover (Second) - speed 0x80
+07 - consume_okay - speed 0x80
+08 - consume_bad - speed 0x80
+02 - consume_good melody + consume_okay - speed 0x50
 
 01/03 - up1-8 - speed 0x20
 09/0A - down1-8 - speed 0x20

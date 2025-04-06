@@ -159,6 +159,7 @@ class GameState {
     let result: 'both' | 'right' = 'right';
     let msg;
     if (count_white === column.length || move === 'down') {
+      playUISound('consume_good');
       msg = 'Perfect!';
       result = 'both';
       this.count_good++;
@@ -168,8 +169,10 @@ class GameState {
       if (count_white) {
         this.count_bad++;
         msg = 'Impure!';
+        playUISound('consume_bad');
       } else {
         msg = 'Waste removed';
+        playUISound('consume_okay');
       }
     }
 
@@ -325,9 +328,8 @@ function statePlay(dt: number): void {
         outline_color: palette_font[0],
         outline_width: 5,
       }),
-      x: board_x + ORB_DIM/2,
+      x: frame_x,
       y: frame_y - 8 - floor(easeIn(m.t, 2) * 64),
-      align: ALIGN.HCENTER,
       text: m.msg,
       z: Z.UI + 30,
     });
@@ -794,6 +796,10 @@ export function main(): void {
       down6: 'down6',
       down7: 'down7',
       down8: 'down8',
+      rollover: { file: 'rollover', volume: 0.5 },
+      consume_okay: 'consume_okay',
+      consume_good: 'consume_good',
+      consume_bad: 'consume_bad',
     },
   })) {
     return;
