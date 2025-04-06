@@ -40,6 +40,7 @@ import {
   setFontHeight,
   setFontStyles,
   uiButtonHeight,
+  uiButtonWidth,
   uiGetFont,
   uiSetPanelColor,
   uiTextHeight,
@@ -309,7 +310,6 @@ let bg: Sprite;
 let mask: Sprite;
 let game_state: GameState;
 function init(): void {
-  game_state = new GameState();
   bg = spriteCreate({
     name: 'bg',
   });
@@ -519,6 +519,11 @@ let blink = 0;
 let grinder_anim_h = 0;
 let grinder_anim_v = 0;
 let help_visible = false;
+
+function newGame(): void {
+  game_state = new GameState();
+}
+
 function statePlay(dt: number): void {
   camera2d.setAspectFixedRespectPixelPerfect(game_width, game_height);
   gl.clearColor(palette[0][0], palette[0][1], palette[0][2], 1);
@@ -629,8 +634,25 @@ function statePlay(dt: number): void {
       text: `${count_good} / ${VICTORY} refined`,
     });
     let y0 = (game_height - 46)/2;
-    let y1 = (game_height + 46)/2;
-    drawRect(2, y0, game_width - 2, y1, 499, palette[0]);
+    let y1 = (game_height + 46)/2 + 13;
+    let button_w = uiButtonWidth();
+    if (buttonText({
+      x: floor((game_width - button_w)/2),
+      y: y1 - uiButtonHeight() - 3,
+      z: 500,
+      text: 'PLAY AGAIN',
+    })) {
+      newGame();
+    }
+
+    panel({
+      x: 2,
+      y: y0,
+      w: game_width - 4,
+      h: y1 - y0,
+      z: 500,
+    });
+
     eatAllInput();
   }
   if (count_good === VICTORY) {
@@ -641,7 +663,7 @@ function statePlay(dt: number): void {
         outline_color: palette_font[1],
         outline_width: 5,
       }),
-      x: 0, y: 1,
+      x: 1, y: 1,
       w: game_width, h: game_height,
       z: 500,
       align: ALIGN.HVCENTER,
@@ -659,9 +681,26 @@ function statePlay(dt: number): void {
       align: ALIGN.HVCENTER,
       text: count_bad ? `SCORE: ${GAME_OVER - count_bad}` : `PERFECT! (${GAME_OVER})`,
     });
-    let y0 = (game_height - 20)/2;
-    let y1 = (game_height + 20) / 2 + 10;
-    drawRect(2, y0, game_width - 2, y1, 499, palette[0]);
+    let y0 = (game_height - 20)/2 - 2;
+    let y1 = (game_height + 20) / 2 + 10 + 13;
+    let button_w = uiButtonWidth();
+    if (buttonText({
+      x: floor((game_width - button_w)/2),
+      y: y1 - uiButtonHeight() - 3,
+      z: 500,
+      text: 'PLAY AGAIN',
+    })) {
+      newGame();
+    }
+
+    panel({
+      x: 2,
+      y: y0,
+      w: game_width - 4,
+      h: y1 - y0,
+      z: 500,
+    });
+
     eatAllInput();
   }
   if (count_good) {
@@ -1087,6 +1126,7 @@ export function main(): void {
   ]);
 
   init();
+  newGame();
 
   engine.setState(statePlay);
 }

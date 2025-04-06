@@ -14,9 +14,8 @@ Start with: `npm start` (after running `npm i` once)
 TODO
 * music
 * victory jingle?
-* high score list - play again buttons on both endings
+* high score tracking
 * particles from grinders
-* title / menu?
 
 Polish:
 * dithered path behind the miner
@@ -25,6 +24,7 @@ Polish:
 * Animate in the initial board
 * Render filters - do subtle pixel lines (mock up in photoshop)? photograph a game boy as a wrapping element?
 * Tap-select-tap-swap controls
+* title / menu?
 
 Plan
 * Similar to distilling in YPP
