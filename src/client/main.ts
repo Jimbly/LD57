@@ -172,13 +172,18 @@ class GameState {
       this.count_good++;
       this.good_since_clear++;
     } else {
-      this.count_bad++;
-      if (count_white) {
+      let deduct_points = this.count_good;
+      if (deduct_points) {
         this.count_bad++;
-        msg = '-2 Wasteful!';
+      }
+      if (count_white) {
+        if (deduct_points) {
+          this.count_bad++;
+        }
+        msg = `${deduct_points ? '-2 ' : ''}Wasteful!`;
         playUISound('consume_bad');
       } else {
-        msg = '-1 Just rocks';
+        msg = `${deduct_points ? '-1 ' : ''}Just rocks`;
         playUISound('consume_okay');
       }
     }
