@@ -12,7 +12,7 @@ import * as camera2d from 'glov/client/camera2d';
 import { platformParameterGet } from 'glov/client/client_config';
 import * as engine from 'glov/client/engine';
 import { getFrameTimestamp } from 'glov/client/engine';
-import { ALIGN, fontStyle, vec4ColorFromIntColor } from 'glov/client/font';
+import { ALIGN, fontStyle, fontStyleColored, vec4ColorFromIntColor } from 'glov/client/font';
 import { Box } from 'glov/client/geom_types';
 import {
   eatAllInput,
@@ -28,12 +28,14 @@ import { spriteSetGet } from 'glov/client/sprite_sets';
 import { Sprite, spriteClipPop, spriteClipPush, spriteCreate } from 'glov/client/sprites';
 import {
   buttonImage,
+  buttonText,
   drawHBox,
   drawRect,
   playUISound,
   scaleSizes,
   setButtonHeight,
   setFontHeight,
+  setFontStyles,
   uiButtonHeight,
   uiGetFont,
   uiTextHeight,
@@ -58,21 +60,21 @@ const palette = palette_font.map((c) => {
   return vec4ColorFromIntColor(vec4(), c);
 });
 
-const { abs, max, min, floor, sin, PI } = Math;
+const { abs, max, min, floor, round, sin, PI } = Math;
 
 window.Z = window.Z || {};
 Z.BACKGROUND = 1;
 Z.SPRITES = 10;
 
 // Virtual viewport for our game logic
-const game_width = 96;
-const game_height = 96;
+const game_width = 100;
+const game_height = 100;
 
 const COLUMNS = 7;
 const ROWS_TALL = 6;
 const ROWS_SHORT = ROWS_TALL - 1;
 
-let rand = randCreate(1234);
+let rand = randCreate(3456);
 
 function moves(a: number, b: number, up: boolean): boolean {
   if (!up) {
@@ -86,27 +88,34 @@ function moves(a: number, b: number, up: boolean): boolean {
 }
 
 class GameState {
-  columns: number[][];
+  columns!: number[][];
   held: JSVec2 | null = null;
   first_column_is_high = true;
   count_bad = 0;
   count_good = 0;
+  good_since_clear = 0;
 
   queue: number[] = [];
-  orb(): number {
-    let { queue } = this;
-    if (!queue.length) {
-      for (let ii = 1; ii <= 3; ++ii) {
-        for (let jj = 0; jj < 40; ++jj) {
-          queue.push(ii);
-        }
+  refillOrbs(): void {
+    let new_orbs = [];
+    for (let ii = 1; ii <= 3; ++ii) {
+      for (let jj = 0; jj < 22; ++jj) {
+        new_orbs.push(ii);
       }
-      shuffleArray(rand, queue);
     }
-    return queue.pop()!;
+    shuffleArray(rand, new_orbs);
+    this.queue = this.queue.concat(new_orbs);
+  }
+  orb(): number {
+    if (!this.queue.length) {
+      this.refillOrbs();
+    }
+    return this.queue.shift()!;
   }
 
-  constructor() {
+  redraw(): void {
+    this.held = null;
+    this.good_since_clear = 0;
     this.columns = [];
     for (let ii = 0; ii < COLUMNS; ++ii) {
       let row = [];
@@ -115,6 +124,10 @@ class GameState {
       }
       this.columns.push(row);
     }
+  }
+
+  constructor() {
+    this.redraw();
   }
 
   canSwap(b: JSVec2): boolean {
@@ -144,17 +157,11 @@ class GameState {
     this.last_columns = null;
     let counts = [0,0,0,0];
     let column = this.columns[0];
+    let is_tall = column.length === ROWS_TALL;
     for (let ii = 0; ii < column.length; ++ii) {
       counts[column[ii]]++;
     }
     let count_white = counts[1];
-
-    this.columns.splice(0, 1);
-    let new_column = [];
-    for (let ii = 0; ii < (column.length === ROWS_TALL ? ROWS_SHORT : ROWS_TALL); ++ii) {
-      new_column.push(this.orb());
-    }
-    this.columns.push(new_column);
 
     let result: 'both' | 'right' = 'right';
     let msg;
@@ -163,27 +170,81 @@ class GameState {
       msg = 'Perfect!';
       result = 'both';
       this.count_good++;
-      //this.count_bad++;
+      this.good_since_clear++;
     } else {
       this.count_bad++;
       if (count_white) {
         this.count_bad++;
-        msg = 'Impure!';
+        msg = '-2 Impure!';
         playUISound('consume_bad');
       } else {
-        msg = 'Waste removed';
+        msg = '-1 Waste removed';
         playUISound('consume_okay');
       }
     }
+    this.columns.splice(0, 1);
 
     let row = [];
     if (result === 'both') {
       for (let ii = 0; ii < this.columns.length; ++ii) {
         let col = this.columns[ii];
         row.push(col.shift()!);
+      }
+    }
+
+
+    let need_new = is_tall ? ROWS_SHORT : ROWS_TALL;
+
+    if (result === 'both') {
+      need_new += COLUMNS - 1;
+    }
+
+    let remaining_white = 0;
+    for (let ii = 0; ii < this.columns.length; ++ii) {
+      let col = this.columns[ii];
+      for (let jj = 0; jj < col.length; ++jj) {
+        if (col[jj] === 1) {
+          remaining_white++;
+        }
+      }
+    }
+
+    let need_new_white = min(need_new, max(0, 8 - remaining_white));
+    if (need_new_white) {
+      if (this.queue.length < need_new) {
+        this.refillOrbs();
+      }
+      let getting_white = 0;
+      let non_white_idxs = [];
+      for (let ii = 0; ii < need_new; ++ii) {
+        if (this.queue[ii] === 1) {
+          ++getting_white;
+        } else {
+          non_white_idxs.push(ii);
+        }
+      }
+      for (let ii = getting_white; ii < need_new_white; ++ii) {
+        assert(non_white_idxs.length);
+        let idx_idx = rand.range(non_white_idxs.length);
+        let idx = non_white_idxs[idx_idx];
+        ridx(non_white_idxs, idx_idx);
+        this.queue[idx] = 1;
+      }
+    }
+
+    if (result === 'both') {
+      for (let ii = 0; ii < this.columns.length; ++ii) {
+        let col = this.columns[ii];
         col.push(this.orb());
       }
     }
+
+    let new_column = [];
+    for (let ii = 0; ii < (is_tall ? ROWS_SHORT : ROWS_TALL); ++ii) {
+      new_column.push(this.orb());
+    }
+    this.columns.push(new_column);
+
 
     return [result, msg, row];
   }
@@ -191,15 +252,15 @@ class GameState {
   shouldConsume(): boolean {
     let c0 = this.columns[0];
     let all_white = true;
-    let all_other = true;
+    // let all_other = true;
     for (let ii = 0; ii < c0.length; ++ii) {
       if (c0[ii] === 1) {
-        all_other = false;
+        // all_other = false;
       } else {
         all_white = false;
       }
     }
-    return all_white || all_other;
+    return all_white; // || all_other;
   }
 
   last_columns: null | number[][] = null;
@@ -675,12 +736,24 @@ function statePlay(dt: number): void {
 
   if (game_state.last_columns && buttonImage({
     img: autoAtlas('gfx', 'undo'),
-    x: camera2d.x0() + 1,
-    y: camera2d.y1() - uiButtonHeight() - 1,
+    x: round(camera2d.x0()) + 1,
+    y: round(camera2d.y1()) - uiButtonHeight() - 1,
     shrink: 1,
     hotkey: KEYS.Z,
   })) {
     game_state.undo();
+  }
+
+  const button_w = 53;
+  // eslint-disable-next-line no-constant-binary-expression
+  if (false && game_state.good_since_clear >= 3 && buttonText({
+    x: round(camera2d.x1()) - button_w - 1,
+    y: round(camera2d.y1()) - uiButtonHeight() - 1,
+    w: button_w,
+    z: 200,
+    text: 'New board',
+  })) {
+    game_state.redraw();
   }
 
   let power_pos = {
@@ -812,6 +885,9 @@ export function main(): void {
   scaleSizes(13 / 32);
   setFontHeight(8);
   setButtonHeight(9);
+  setFontStyles(
+    fontStyleColored(null, palette_font[3]),
+  );
 
   init();
 

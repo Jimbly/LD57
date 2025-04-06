@@ -12,14 +12,15 @@ Acknowledgements:
 Start with: `npm start` (after running `npm i` once)
 
 TODO
-* If there are 2 or fewer white remaining after clearing, give a new board? (and don't shouldConsume on non-white)
-  * Conservation of white and try to remove 100% / some quota to get new board?  Nice that clearing waste gives more options though
 * display score at end
 * music
 * high score list
 * particles from grinders
 
 Polish:
+* when mousing over the consume button, apply a dithered overlay upon what will be removed
+* floater -1 / -2 on score when consuming
+* Animate in the initial board
 * Tap-select-tap-swap controls
 
 Plan
