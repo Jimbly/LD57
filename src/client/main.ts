@@ -11,6 +11,7 @@ import assert from 'assert';
 import { autoAtlas } from 'glov/client/autoatlas';
 import * as camera2d from 'glov/client/camera2d';
 import { platformParameterGet } from 'glov/client/client_config';
+import { applyCopy, effectsQueue, registerShader } from 'glov/client/effects';
 import * as engine from 'glov/client/engine';
 import { getFrameDt, getFrameTimestamp } from 'glov/client/engine';
 import { ALIGN, fontStyle, fontStyleColored, vec4ColorFromIntColor } from 'glov/client/font';
@@ -338,6 +339,9 @@ function init(): void {
   bg = spriteCreate({
     name: 'bg',
   });
+  registerShader('repalette', {
+    fp: 'shaders/repalette.fp',
+  });
   shader_bgmask = shaderCreate('shaders/bgmask.fp');
   let tex_bgdither = textureLoad({
     url: 'img/bgdither.png',
@@ -646,6 +650,15 @@ function statePlay(dt: number): void {
   camera2d.setAspectFixedRespectPixelPerfect(game_width, game_height);
   gl.clearColor(palette[0][0], palette[0][1], palette[0][2], 1);
   let font = uiGetFont();
+
+  effectsQueue(899, function () {
+    applyCopy({
+      shader: 'repalette',
+      params: {
+        param: [game_state.count_good / VICTORY, 1],
+      },
+    });
+  });
 
   if (help_visible) {
     showHelp();
