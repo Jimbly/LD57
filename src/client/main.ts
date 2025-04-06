@@ -29,6 +29,8 @@ import {
   scoreAlloc,
   ScoreSystem,
 } from 'glov/client/score';
+import * as settings from 'glov/client/settings';
+import { soundPlayMusic } from 'glov/client/sound';
 import { spot, SPOT_DEFAULT_BUTTON } from 'glov/client/spot';
 import { spriteSetGet } from 'glov/client/sprite_sets';
 import { Sprite, spriteClipPop, spriteClipPush, spriteCreate } from 'glov/client/sprites';
@@ -361,6 +363,7 @@ function init(): void {
     num_names: 1,
     histogram: false,
   });
+  soundPlayMusic('bgm');
 }
 
 const ORB_DIM = 8;
@@ -1006,6 +1009,20 @@ function statePlay(dt: number): void {
     hotkeys: [KEYS.F1, KEYS.SLASH, KEYS.H, ...(help_visible ? [KEYS.ESC] : [])],
   })) {
     help_visible = !help_visible;
+  }
+
+  if (buttonImage({
+    img: autoAtlas('gfx', settings.volume_music ? 'music_on' : 'music_off'),
+    x: buttons_x,
+    y: round(camera2d.y1()) - uiButtonHeight() - 1,
+    z: Z.HELP + 1,
+    shrink: 1,
+    hotkeys: [KEYS.M],
+  })) {
+    settings.settingsSet('volume_music', 1 - settings.volume_music);
+    if (settings.volume_music) {
+      soundPlayMusic('bgm');
+    }
   }
 
   if (game_state.last_columns && buttonImage({

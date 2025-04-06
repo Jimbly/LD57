@@ -11,19 +11,19 @@ Acknowledgements:
 
 Start with: `npm start` (after running `npm i` once)
 
-TODO
-* music
-* victory jingle?
+TODO / Polish
 * particles from grinders
-
-Polish:
+* go down much faster
 * dithered path behind the miner
+* blend palette to something actually more gold at the end?
 * when mousing over the consume button, apply a dithered overlay upon what will be removed
+* maybe, try palette-dithered photo of rocks?  layers of random rocks moving when the miner moves?
 * floater -1 / -2 on score when consuming
 * Animate in the initial board
 * Photograph a game boy as a wrapping element?
 * Tap-select-tap-swap controls
 * title / menu?
+* victory jingle?
 
 Plan
 * Similar to distilling in YPP
