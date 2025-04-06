@@ -13,7 +13,6 @@ Acknowledgements:
 Start with: `npm start` (after running `npm i` once)
 
 TODO / Polish
-* dithered path behind the miner
 * blend palette to something actually more gold at the end?
 * when mousing over the consume button, apply a dithered overlay upon what will be removed
 * maybe, try palette-dithered photo of rocks?  layers of random rocks moving when the miner moves?

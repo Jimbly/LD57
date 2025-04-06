@@ -31,10 +31,12 @@ import {
   ScoreSystem,
 } from 'glov/client/score';
 import * as settings from 'glov/client/settings';
+import { shaderCreate } from 'glov/client/shaders';
 import { soundPlayMusic } from 'glov/client/sound';
 import { spot, SPOT_DEFAULT_BUTTON } from 'glov/client/spot';
 import { spriteSetGet } from 'glov/client/sprite_sets';
-import { Sprite, spriteClipPop, spriteClipPush, spriteCreate } from 'glov/client/sprites';
+import { Shader, Sprite, spriteClipPop, spriteClipPush, spriteCreate } from 'glov/client/sprites';
+import { textureLoad } from 'glov/client/textures';
 import {
   buttonImage,
   buttonText,
@@ -331,12 +333,24 @@ let effect: Sprite;
 let game_state: GameState;
 let part_sprites: Sprite[] = [];
 let origin_center = vec2(0.5, 0.5);
+let shader_bgmask: Shader;
 function init(): void {
   bg = spriteCreate({
     name: 'bg',
   });
+  shader_bgmask = shaderCreate('shaders/bgmask.fp');
+  let tex_bgdither = textureLoad({
+    url: 'img/bgdither.png',
+  });
+  let tex_mask = textureLoad({
+    url: 'img/mask.png',
+    wrap_s: gl.CLAMP_TO_EDGE,
+    wrap_t: gl.CLAMP_TO_EDGE,
+    filter_mag: gl.NEAREST,
+    filter_min: gl.NEAREST,
+  });
   mask = spriteCreate({
-    name: 'mask',
+    texs: [tex_bgdither, tex_mask],
   });
   effect = spriteCreate({
     name: 'effect',
@@ -398,15 +412,15 @@ function drawBG(dx: number, dy: number): void {
     ],
     z: 1,
   });
-  let uoffs = floor(getFrameTimestamp() * 0.01) / 128;
-  let voffs = floor(getFrameTimestamp() * 0.013) / 128;
-  if (0) {
+  if (1) {
     mask.draw({
       x, y, w, h,
-      uvs: [
-        uoffs, voffs,
-        w/128 + uoffs, h/128 + voffs
-      ],
+      // uvs: [0, 0, 1, 1],
+      shader: shader_bgmask,
+      shader_params: {
+        uv1: [w/128, h/128, uoffs1, voffs1],
+        uv2: [w/256, h/256, (256 - (BOARD_X1 + 7 - x))/256, (256 - (BOARD_Y1 + 8 - y))/256],
+      },
       z: 2,
     });
   }
