@@ -324,6 +324,7 @@ function playSwap(up: boolean): void {
 
 let bg: Sprite;
 let mask: Sprite;
+let effect: Sprite;
 let game_state: GameState;
 function init(): void {
   bg = spriteCreate({
@@ -331,6 +332,11 @@ function init(): void {
   });
   mask = spriteCreate({
     name: 'mask',
+  });
+  effect = spriteCreate({
+    name: 'effect',
+    filter_mag: gl.LINEAR,
+    filter_min: gl.LINEAR_MIPMAP_LINEAR,
   });
 
   const ENCODE_BAD = 1000;
@@ -371,8 +377,8 @@ let bg_offs = [0, 0];
 function drawBG(dx: number, dy: number): void {
   let x = floor(camera2d.x0Real());
   let y = floor(camera2d.y0Real());
-  let h = camera2d.hReal() + 2;
-  let w = camera2d.wReal() + 2;
+  let h = floor(camera2d.hReal()) + 2;
+  let w = floor(camera2d.wReal()) + 2;
   let uoffs1 = (bg_offs[0] - dx + x) / 128;
   let voffs1 = (bg_offs[1] - dy + y) / 128;
   bg.draw({
@@ -393,6 +399,16 @@ function drawBG(dx: number, dy: number): void {
         w/128 + uoffs, h/128 + voffs
       ],
       z: 2,
+    });
+  }
+  if (1) {
+    let du = 15/32;
+    effect.draw({
+      x, y, w, h,
+      z: 900,
+      uvs: [0+du, 0+du, w+du, h+du],
+      color: [1,1,1,0.25],
+      nozoom: true,
     });
   }
   drawRect(BOARD_X - 2, BOARD_Y - 2, BOARD_X1 + 1, BOARD_Y1 + 1, 3, palette[0]);
