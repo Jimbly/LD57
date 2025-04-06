@@ -13,7 +13,6 @@ Acknowledgements:
 Start with: `npm start` (after running `npm i` once)
 
 TODO / Polish
-* Animate in the initial board
 * Tap-select-tap-swap controls
 
 Plan

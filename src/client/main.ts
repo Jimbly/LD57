@@ -57,7 +57,7 @@ import {
 } from 'glov/client/ui';
 import { randCreate, shuffleArray } from 'glov/common/rand_alea';
 import { TSMap } from 'glov/common/types';
-import { clone, easeIn, easeInOut, easeOut, lerp, ridx, tweenBounceOut } from 'glov/common/util';
+import { clone, easeIn, easeInOut, easeOut, lerp, ridx, tweenBounceIn, tweenBounceOut } from 'glov/common/util';
 import {
   JSVec2,
   unit_vec,
@@ -601,9 +601,10 @@ let blink = 0;
 let grinder_anim_h = 0;
 let grinder_anim_v = 0;
 let help_visible = false;
-
+let initial_anim = -1;
 function newGame(): void {
   game_state = new GameState();
+  initial_anim = -1;
 }
 
 type Particle = {
@@ -705,8 +706,15 @@ function statePlay(dt: number): void {
     });
   }
 
+  if (initial_anim === -1) {
+    initial_anim = 0;
+  }
+  initial_anim = min(1, initial_anim + dt * 0.001);
+
   let board_xoffs = 0;
-  let board_yoffs = 0;
+  if (initial_anim < 1) {
+    board_y += floor(tweenBounceIn(1 - initial_anim) * (BOARD_Y1 - BOARD_Y));
+  }
   if (board_anim) {
     board_anim.t += dt/1000;
     if (board_anim.t >= 1) {
@@ -715,7 +723,7 @@ function statePlay(dt: number): void {
       board_xoffs = XADV - floor(XADV * easeIn(board_anim.t, 2));
       board_x += board_xoffs;
       if (board_anim.style === 'both') {
-        board_yoffs = YADV - floor(YADV * board_anim.t);
+        let board_yoffs = YADV - floor(YADV * board_anim.t);
         board_y += board_yoffs;
       }
     }
