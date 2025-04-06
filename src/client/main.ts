@@ -1156,7 +1156,8 @@ function statePlay(dt: number): void {
     disabled: Boolean(board_anim),
   });
   let do_blink = false;
-  if (game_state.shouldConsume()) {
+  let should_consume = game_state.shouldConsume();
+  if (should_consume) {
     blink += dt * 0.003;
     blink %= 1;
     do_blink = blink < 0.3;
@@ -1168,6 +1169,18 @@ function statePlay(dt: number): void {
       ...power_pos,
       z: Z.UI + 12,
       // color: palette[2],
+    });
+  }
+  if (spot_ret.focused && !board_anim) {
+    autoAtlas('gfx', should_consume ?
+      columns[0].length === ROWS_TALL ? 'preview_both' : 'preview_both2' :
+      columns[0].length === ROWS_TALL ? 'preview_right' : 'preview_right2'
+    ).draw({
+      x: BOARD_X,
+      y: BOARD_Y,
+      w: 62,
+      h: 58,
+      z: Z.UI + 1,
     });
   }
   let do_consume: 'auto' | 'down' | null = spot_ret.ret ? 'auto' : null;
