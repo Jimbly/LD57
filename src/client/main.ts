@@ -175,10 +175,10 @@ class GameState {
       this.count_bad++;
       if (count_white) {
         this.count_bad++;
-        msg = '-2 Impure!';
+        msg = '-2 Wasteful!';
         playUISound('consume_bad');
       } else {
-        msg = '-1 Waste removed';
+        msg = '-1 Just rocks';
         playUISound('consume_okay');
       }
     }
@@ -460,7 +460,21 @@ function statePlay(dt: number): void {
       align: ALIGN.HVCENTER,
       text: 'YOU WIN',
     });
-    drawRect(2, (game_height - 20)/2, game_width - 2, (game_height + 20) / 2, 499, palette[0]);
+    font.draw({
+      style: fontStyle(null, {
+        color: palette_font[3],
+        outline_color: palette_font[1],
+        outline_width: 5,
+      }),
+      x: 0, y: 13,
+      w: game_width, h: game_height,
+      z: 500,
+      align: ALIGN.HVCENTER,
+      text: count_bad ? `SCORE: ${GAME_OVER - count_bad}` : `PERFECT! (${GAME_OVER})`,
+    });
+    let y0 = (game_height - 20)/2;
+    let y1 = (game_height + 20) / 2 + 10;
+    drawRect(2, y0, game_width - 2, y1, 499, palette[0]);
     eatAllInput();
   }
   if (count_good) {

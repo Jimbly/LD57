@@ -12,7 +12,7 @@ Acknowledgements:
 Start with: `npm start` (after running `npm i` once)
 
 TODO
-* display score at end
+* game over screen
 * music
 * high score list
 * particles from grinders
