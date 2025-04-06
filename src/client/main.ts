@@ -5,6 +5,7 @@ local_storage.setStoragePrefix('ld57'); // Before requiring anything else that m
 
 const GAME_OVER = 25;
 const VICTORY = 12;
+const DOWN_SCALE = 5;
 
 import assert from 'assert';
 import { autoAtlas } from 'glov/client/autoatlas';
@@ -328,6 +329,8 @@ let bg: Sprite;
 let mask: Sprite;
 let effect: Sprite;
 let game_state: GameState;
+let part_sprites: Sprite[] = [];
+let origin_center = vec2(0.5, 0.5);
 function init(): void {
   bg = spriteCreate({
     name: 'bg',
@@ -340,6 +343,9 @@ function init(): void {
     filter_mag: gl.LINEAR,
     filter_min: gl.LINEAR_MIPMAP_LINEAR,
   });
+  for (let ii = 1; ii <= 4; ++ii) {
+    part_sprites.push(autoAtlas('gfx', `part${ii}`).withOrigin(origin_center));
+  }
 
   const ENCODE_BAD = 1000;
   score_system = scoreAlloc({
@@ -582,6 +588,46 @@ function newGame(): void {
   game_state = new GameState();
 }
 
+type Particle = {
+  x: number;
+  y: number;
+  r: number;
+  img: number;
+  toffs: number;
+  t: number;
+  vx: number;
+  vy: number;
+};
+let particles: Particle[] = [];
+function addParticles(style: 'both' | 'right'): void {
+  function addPart(x: number, y: number): void {
+    particles.push({
+      x, y,
+
+      r: rand.range(4) * PI/2,
+      img: rand.range(4),
+      t: 0,
+      toffs: rand.random(),
+      vx: -4 + rand.range(9),
+      vy: -4 + rand.range(9),
+    });
+  }
+  if (style === 'both') {
+    for (let ii = 0; ii < 40; ++ii) {
+      addPart(
+        BOARD_X - 8 + rand.range(BOARD_X1 - BOARD_X + 12),
+        BOARD_Y1 + 6 + floor(rand.random() * rand.random() * 6),
+      );
+    }
+  }
+  for (let ii = 0; ii < 40; ++ii) {
+    addPart(
+      BOARD_X1 + 7 + floor(rand.random() * rand.random() * 6),
+      BOARD_Y - 8 + rand.range(BOARD_Y1 - BOARD_Y + 8),
+    );
+  }
+}
+
 function statePlay(dt: number): void {
   camera2d.setAspectFixedRespectPixelPerfect(game_width, game_height);
   gl.clearColor(palette[0][0], palette[0][1], palette[0][2], 1);
@@ -616,6 +662,22 @@ function statePlay(dt: number): void {
     });
   }
 
+  for (let ii = particles.length - 1; ii >= 0; --ii) {
+    let part = particles[ii];
+    part.t += dt/2000;
+    if (part.t + part.toffs >= 1) {
+      ridx(particles, ii);
+      continue;
+    }
+    part_sprites[(part.img + floor((part.t + part.toffs) * 8)) % 4].draw({
+      x: part.x + floor(easeIn(part.t, 2) * part.vx),
+      y: part.y + floor(easeIn(part.t, 2) * part.vy),
+      w: 8, h: 8,
+      rot: part.r,
+      z: 200,
+    });
+  }
+
   let board_xoffs = 0;
   let board_yoffs = 0;
   if (board_anim) {
@@ -632,7 +694,7 @@ function statePlay(dt: number): void {
     }
   }
 
-  drawBG(board_xoffs, board_yoffs);
+  drawBG(board_xoffs, board_anim?.style === 'both' ? floor((YADV - YADV * board_anim.t) * DOWN_SCALE) : 0);
 
   autoAtlas('gfx', 'frame').draw({
     x: frame_x,
@@ -1102,8 +1164,9 @@ function statePlay(dt: number): void {
     board_anim!.row = row;
     bg_offs[0] += XADV;
     if (style === 'both') {
-      bg_offs[1] += YADV;
+      bg_offs[1] += YADV*DOWN_SCALE;
     }
+    addParticles(style);
   }
 }
 
