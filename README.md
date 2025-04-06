@@ -13,13 +13,17 @@ Start with: `npm start` (after running `npm i` once)
 
 TODO
 * music
+* victory jingle?
 * high score list - play again buttons on both endings
 * particles from grinders
+* title / menu?
 
 Polish:
+* dithered path behind the miner
 * when mousing over the consume button, apply a dithered overlay upon what will be removed
 * floater -1 / -2 on score when consuming
 * Animate in the initial board
+* Render filters - do subtle pixel lines (mock up in photoshop)? photograph a game boy as a wrapping element?
 * Tap-select-tap-swap controls
 
 Plan

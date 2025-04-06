@@ -11,7 +11,7 @@ import { autoAtlas } from 'glov/client/autoatlas';
 import * as camera2d from 'glov/client/camera2d';
 import { platformParameterGet } from 'glov/client/client_config';
 import * as engine from 'glov/client/engine';
-import { getFrameTimestamp } from 'glov/client/engine';
+import { getFrameDt, getFrameTimestamp } from 'glov/client/engine';
 import { ALIGN, fontStyle, fontStyleColored, vec4ColorFromIntColor } from 'glov/client/font';
 import { Box } from 'glov/client/geom_types';
 import {
@@ -22,6 +22,8 @@ import {
   mouseDownEdge,
   mousePos,
 } from 'glov/client/input';
+import { markdownAuto } from 'glov/client/markdown';
+import { markdownImageRegisterAutoAtlas, markdownSetColorStyles } from 'glov/client/markdown_renderables';
 import { netInit } from 'glov/client/net';
 import { spot, SPOT_DEFAULT_BUTTON } from 'glov/client/spot';
 import { spriteSetGet } from 'glov/client/sprite_sets';
@@ -31,6 +33,7 @@ import {
   buttonText,
   drawHBox,
   drawRect,
+  panel,
   playUISound,
   scaleSizes,
   setButtonHeight,
@@ -38,6 +41,7 @@ import {
   setFontStyles,
   uiButtonHeight,
   uiGetFont,
+  uiSetPanelColor,
   uiTextHeight,
 } from 'glov/client/ui';
 import { randCreate, shuffleArray } from 'glov/common/rand_alea';
@@ -45,6 +49,7 @@ import { TSMap } from 'glov/common/types';
 import { clone, easeIn, easeInOut, easeOut, lerp, ridx, tweenBounceOut } from 'glov/common/util';
 import {
   JSVec2,
+  unit_vec,
   v2dist,
   vec2,
   vec4,
@@ -65,6 +70,7 @@ const { abs, max, min, floor, round, sin, PI } = Math;
 window.Z = window.Z || {};
 Z.BACKGROUND = 1;
 Z.SPRITES = 10;
+Z.HELP = 300;
 
 // Virtual viewport for our game logic
 const game_width = 100;
@@ -359,6 +365,147 @@ type Tween = {
 };
 let tweens: TSMap<Tween[]> = {};
 
+function drawOrb(
+  tween_key: string, x: number, y: number, z: number,
+  moves_up: boolean, moves_down: boolean, cell: number
+): Box {
+  let bounds = {
+    x, y, z,
+    w: ORB_DIM,
+    h: ORB_DIM,
+  };
+  let bounds_pre_tween: Box | null = null;
+  let tween = tweens[tween_key];
+  if (tween) {
+    for (let kk = tween.length - 1; kk >= 0; --kk) {
+      let elem = tween[kk];
+      elem.t += getFrameDt() * 0.01;
+      if (elem.t >= 1) {
+        ridx(tween, kk);
+        continue;
+      }
+      if (!bounds_pre_tween) {
+        bounds_pre_tween = {
+          ...bounds,
+        };
+      }
+      bounds.x += floor((1 - elem.t) * elem.dx * (XADV + 1));
+      bounds.y += floor((1 - elem.t) * elem.dy * (YADV / 2 - 1));
+    }
+  }
+  autoAtlas('gfx', `orb${cell}`).draw(bounds);
+  if (moves_up) {
+    autoAtlas('gfx', 'connect_up').draw({
+      ...(bounds_pre_tween || bounds),
+      w: 10,
+    });
+  }
+  if (moves_down) {
+    autoAtlas('gfx', 'connect_down').draw({
+      ...(bounds_pre_tween || bounds),
+      w: 10,
+    });
+  }
+  return bounds;
+}
+
+let help_timer = 0;
+let help_swapped = false;
+function showHelp(): void {
+  help_timer += getFrameDt();
+  if (help_timer > 1000) {
+    help_timer = 0;
+    if (help_swapped) {
+      tweens = {};
+      help_swapped = false;
+    } else {
+      help_swapped = true;
+      tweens.help11 = [{
+        dx: -1,
+        dy: 1,
+        t: 0,
+      }];
+      tweens.help12 = [{
+        dx: 1,
+        dy: -1,
+        t: 0,
+      }];
+      tweens.help21 = [{
+        dx: -1,
+        dy: 1,
+        t: 0,
+      }];
+      tweens.help22 = [{
+        dx: 1,
+        dy: -1,
+        t: 0,
+      }];
+      tweens.help31 = [{
+        dx: -1,
+        dy: 1,
+        t: 0,
+      }];
+      tweens.help32 = [{
+        dx: 1,
+        dy: -1,
+        t: 0,
+      }];
+    }
+  }
+  let z = Z.HELP;
+  let font = uiGetFont();
+  let x = 4;
+  let w = game_width - x * 2;
+  let y = 4;
+  const PAD = 4;
+  const ORBYD = PAD + 8;
+  y += markdownAuto({
+    x, y, w, z,
+    align: ALIGN.HLEFT|ALIGN.HWRAP,
+    text: '[img=orb3] [c=1]COAL[/c] swaps up through [img=orb2] [c=2]STONE[/c]',
+  }).h + PAD;
+  let orb_x = 79;
+  drawOrb(help_swapped ? 'help12' : 'help11', orb_x, y - ORBYD, z, !help_swapped, false, help_swapped ? 2 : 3);
+  drawOrb(help_swapped ? 'help11' : 'help12', orb_x + XADV, y - ORBYD - 4, z, false, false, help_swapped ? 3 : 2);
+  y += markdownAuto({
+    x, y, w, z,
+    align: ALIGN.HLEFT|ALIGN.HWRAP,
+    text: '[img=orb2] [c=2]STONE[/c] swaps up through [img=orb1] [c=3]GOLD[/c]',
+  }).h + PAD;
+  drawOrb(help_swapped ? 'help32' : 'help31', orb_x, y - ORBYD, z, !help_swapped, false, help_swapped ? 1 : 2);
+  drawOrb(help_swapped ? 'help31' : 'help32', orb_x + XADV, y - ORBYD - 4, z, false, false, help_swapped ? 2 : 1);
+  y += markdownAuto({
+    x, y, w, z,
+    align: ALIGN.HLEFT|ALIGN.HWRAP,
+    text: '[img=orb1] [c=3]GOLD[/c] swaps up through [img=orb3] [c=1]COAL[/c]',
+  }).h + PAD;
+  drawOrb(help_swapped ? 'help22' : 'help21', orb_x, y - ORBYD, z, !help_swapped, false, help_swapped ? 3 : 1);
+  drawOrb(help_swapped ? 'help21' : 'help22', orb_x + XADV, y - ORBYD - 4, z, false, false, help_swapped ? 1 : 3);
+
+  y += font.draw({
+    color: palette_font[2],
+    x, y, w, z,
+    align: ALIGN.HCENTER|ALIGN.HWRAP,
+    text: '(or the opposite swaps down)',
+  });
+
+  y = game_height - 12;
+
+  font.draw({
+    color: palette_font[3],
+    x: x - 2, y, w: w + 4, z,
+    align: ALIGN.HCENTER|ALIGN.HWRAP,
+    text: 'Goal: Pure gold in left',
+  });
+
+  panel({
+    x: 1, y: 1,
+    z: z - 1,
+    w: game_width-2,
+    h: game_height-2,
+  });
+}
+
 let board_anim: null | {
   t: number;
   style: 'both' | 'right';
@@ -371,10 +518,15 @@ let idx_to_pos: Box[][] = [];
 let blink = 0;
 let grinder_anim_h = 0;
 let grinder_anim_v = 0;
+let help_visible = false;
 function statePlay(dt: number): void {
   camera2d.setAspectFixedRespectPixelPerfect(game_width, game_height);
   gl.clearColor(palette[0][0], palette[0][1], palette[0][2], 1);
   let font = uiGetFont();
+
+  if (help_visible) {
+    showHelp();
+  }
 
   let board_x = BOARD_X;
   let board_y = BOARD_Y;
@@ -587,48 +739,14 @@ function statePlay(dt: number): void {
     for (let jj = 0; jj < column.length; ++jj) {
       let cell = column[jj];
       let x = board_x + ii * (XADV);
-      let bounds = {
-        x, y,
-        w: ORB_DIM,
-        h: ORB_DIM,
-      };
-      let bounds_pre_tween: Box | null = null;
-      let tween = tweens[`${ii},${jj}`];
-      if (tween) {
-        for (let kk = tween.length - 1; kk >= 0; --kk) {
-          let elem = tween[kk];
-          elem.t += dt * 0.01;
-          if (elem.t >= 1) {
-            ridx(tween, kk);
-            continue;
-          }
-          if (!bounds_pre_tween) {
-            bounds_pre_tween = {
-              ...bounds,
-            };
-          }
-          bounds.x += floor((1 - elem.t) * elem.dx * XADV);
-          bounds.y += floor((1 - elem.t) * elem.dy * YADV / 2);
-        }
-      }
-
-      pos_column[jj] = bounds;
-      autoAtlas('gfx', `orb${cell}`).draw(bounds);
       let up_idx = is_short ? jj : jj - 1;
       let up = right?.[up_idx];
       let down = right?.[up_idx+1];
-      if (moves(cell, up, true)) {
-        autoAtlas('gfx', 'connect_up').draw({
-          ...(bounds_pre_tween || bounds),
-          w: 10,
-        });
-      }
-      if (moves(cell, down, false)) {
-        autoAtlas('gfx', 'connect_down').draw({
-          ...(bounds_pre_tween || bounds),
-          w: 10,
-        });
-      }
+      let moves_up = moves(cell, up, true);
+      let moves_down = moves(cell, down, false);
+      let bounds = drawOrb(`${ii},${jj}`, x, y, Z.UI, moves_up, moves_down, cell);
+
+      pos_column[jj] = bounds;
       let dist = v2dist([x + ORB_DIM/2, y + ORB_DIM/2], mouse_pos);
       if (dist < closest_dist) {
         closest_idx = [ii, jj];
@@ -783,6 +901,19 @@ function statePlay(dt: number): void {
     });
   }
 
+  let buttons_y = round(camera2d.y0()) + 1;
+  let buttons_x = round(camera2d.x1()) - uiButtonHeight() - 1;
+  if (buttonImage({
+    img: autoAtlas('gfx', 'help'),
+    x: buttons_x,
+    y: buttons_y,
+    z: Z.HELP + 1,
+    shrink: 1,
+    hotkeys: [KEYS.F1, KEYS.SLASH, KEYS.H, ...(help_visible ? [KEYS.ESC] : [])],
+  })) {
+    help_visible = !help_visible;
+  }
+
   if (game_state.last_columns && buttonImage({
     img: autoAtlas('gfx', 'undo'),
     x: round(camera2d.x0()) + 1,
@@ -901,6 +1032,7 @@ export function main(): void {
     border_color: palette[0],
     border_clear_color: palette[0],
     do_borders: false,
+    show_fps: false,
     ui_sounds: {
       up1: 'up1',
       up2: 'up2',
@@ -937,6 +1069,22 @@ export function main(): void {
   setFontStyles(
     fontStyleColored(null, palette_font[3]),
   );
+  uiSetPanelColor(unit_vec);
+  markdownImageRegisterAutoAtlas('gfx');
+  markdownSetColorStyles([
+    fontStyle(null, {
+      color: palette_font[0],
+    }),
+    fontStyle(null, {
+      color: palette_font[1],
+    }),
+    fontStyle(null, {
+      color: palette_font[2],
+    }),
+    fontStyle(null, {
+      color: palette_font[3],
+    }),
+  ]);
 
   init();
 
