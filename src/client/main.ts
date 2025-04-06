@@ -404,7 +404,7 @@ function drawBG(dx: number, dy: number): void {
       z: 2,
     });
   }
-  if (0) {
+  if (1) {
     let du = 15/32;
     effect.draw({
       x, y, w, h,
@@ -737,7 +737,7 @@ function statePlay(dt: number): void {
       w: game_width, h: game_height,
       z: 500,
       align: ALIGN.HVCENTER,
-      text: count_bad ? `SCORE: ${GAME_OVER - count_bad}` : `PERFECT! (${GAME_OVER})`,
+      text: count_bad ? `Penalty: ${count_bad}` : `PERFECT! (${GAME_OVER})`,
     });
     let y0 = (game_height - 20)/2 - 2;
     let y1 = (game_height + 20) / 2 + 10 + 13;
@@ -1113,23 +1113,14 @@ export function main(): void {
     netInit({ engine });
   }
 
-  const font_info_04b03x2 = require('./img/font/04b03_8x2.json');
   const font_info_04b03x1 = require('./img/font/04b03_8x1.json');
-  const font_info_palanquin32 = require('./img/font/palanquin32.json');
   let pixely = 'on';
   let font_def;
   let ui_sprites;
   let pixel_perfect = 1;
-  if (pixely === 'strict' || true) {
-    font_def = { info: font_info_04b03x1, texture: 'font/04b03_8x1' };
-    ui_sprites = spriteSetGet('pixely');
-    pixel_perfect = 1;
-  } else if (pixely && pixely !== 'off') {
-    font_def = { info: font_info_04b03x2, texture: 'font/04b03_8x2' };
-    ui_sprites = spriteSetGet('pixely');
-  } else {
-    font_def = { info: font_info_palanquin32, texture: 'font/palanquin32' };
-  }
+  font_def = { info: font_info_04b03x1, texture: 'font/04b03_8x1' };
+  ui_sprites = spriteSetGet('pixely');
+  pixel_perfect = 1;
 
   if (!engine.startup({
     game_width,
