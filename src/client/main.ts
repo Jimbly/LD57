@@ -25,6 +25,10 @@ import {
 import { markdownAuto } from 'glov/client/markdown';
 import { markdownImageRegisterAutoAtlas, markdownSetColorStyles } from 'glov/client/markdown_renderables';
 import { netInit } from 'glov/client/net';
+import {
+  scoreAlloc,
+  ScoreSystem,
+} from 'glov/client/score';
 import { spot, SPOT_DEFAULT_BUTTON } from 'glov/client/spot';
 import { spriteSetGet } from 'glov/client/sprite_sets';
 import { Sprite, spriteClipPop, spriteClipPush, spriteCreate } from 'glov/client/sprites';
@@ -81,7 +85,13 @@ const COLUMNS = 7;
 const ROWS_TALL = 6;
 const ROWS_SHORT = ROWS_TALL - 1;
 
-let rand = randCreate(3456);
+type Score = {
+  good: number;
+  bad: number;
+};
+let score_system: ScoreSystem<Score>;
+
+let rand = randCreate(Date.now());
 
 function moves(a: number, b: number, up: boolean): boolean {
   if (!up) {
@@ -195,6 +205,12 @@ class GameState {
       }
     }
     this.columns.splice(0, 1);
+
+    score_system.setScore(0, {
+      good: this.count_good,
+      bad: this.count_bad,
+    });
+
 
     let row = [];
     if (result === 'both') {
@@ -315,6 +331,29 @@ function init(): void {
   });
   mask = spriteCreate({
     name: 'mask',
+  });
+
+  const ENCODE_BAD = 1000;
+  score_system = scoreAlloc({
+    score_to_value: (score: Score): number => {
+      return ENCODE_BAD - 1 - score.bad +
+        score.good * ENCODE_BAD;
+    },
+    value_to_score: (value: number): Score => {
+      let p = value % ENCODE_BAD;
+      value -= p;
+      return {
+        bad: ENCODE_BAD - 1 - p,
+        good: floor(value / ENCODE_BAD),
+      };
+    },
+    level_defs: 1,
+    score_key: 'LD57',
+    ls_key: 'ld57',
+    asc: false,
+    rel: 1,
+    num_names: 1,
+    histogram: false,
   });
 }
 

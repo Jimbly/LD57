@@ -14,7 +14,6 @@ Start with: `npm start` (after running `npm i` once)
 TODO
 * music
 * victory jingle?
-* high score tracking
 * particles from grinders
 
 Polish:
