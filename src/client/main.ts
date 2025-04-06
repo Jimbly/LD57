@@ -445,6 +445,36 @@ function statePlay(dt: number): void {
     } else {
       drawHBox(param, autoAtlas('gfx', 'bar'));
     }
+  } else {
+    font.draw({
+      size: uiTextHeight() * 2,
+      style: fontStyle(null, {
+        color: palette_font[3],
+        outline_color: palette_font[1],
+        outline_width: 5,
+      }),
+      x: 0, y: -4,
+      w: game_width, h: game_height,
+      z: 500,
+      align: ALIGN.HVCENTER | ALIGN.HWRAP,
+      text: 'GAME\nOVER',
+    });
+    font.draw({
+      style: fontStyle(null, {
+        color: palette_font[3],
+        outline_color: palette_font[1],
+        outline_width: 5,
+      }),
+      x: 0, y: 17,
+      w: game_width, h: game_height,
+      z: 500,
+      align: ALIGN.HVCENTER,
+      text: `${count_good} / ${VICTORY} refined`,
+    });
+    let y0 = (game_height - 46)/2;
+    let y1 = (game_height + 46)/2;
+    drawRect(2, y0, game_width - 2, y1, 499, palette[0]);
+    eatAllInput();
   }
   if (count_good === VICTORY) {
     font.draw({

@@ -12,9 +12,8 @@ Acknowledgements:
 Start with: `npm start` (after running `npm i` once)
 
 TODO
-* game over screen
 * music
-* high score list
+* high score list - play again buttons on both endings
 * particles from grinders
 
 Polish:
