@@ -1,13 +1,14 @@
 LD57 - Depths
 ============================
 
-Ludum Dare 57 Entry by Jimbly - "TBD"
+Ludum Dare 57 Entry by Jimbly - "Refinerator"
 
 * Play here: [dashingstrike.com/LudumDare/LD57/](http://www.dashingstrike.com/LudumDare/LD57/)
 * Using [Javascript libGlov/GLOV.js framework](https://github.com/Jimbly/glovjs)
 
 Acknowledgements:
-* TODO
+* [BGB Gameboy Palette](https://lospec.com/palette-list/nintendo-gameboy-bgb)
+* [04b03 Font](https://www.dafont.com/04b-03.font)
 
 Start with: `npm start` (after running `npm i` once)
 

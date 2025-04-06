@@ -404,7 +404,7 @@ function drawBG(dx: number, dy: number): void {
       z: 2,
     });
   }
-  if (1) {
+  if (0) {
     let du = 15/32;
     effect.draw({
       x, y, w, h,
