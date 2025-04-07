@@ -10,7 +10,7 @@ const DOWN_SCALE = 5;
 import assert from 'assert';
 import { autoAtlas } from 'glov/client/autoatlas';
 import * as camera2d from 'glov/client/camera2d';
-import { platformParameterGet } from 'glov/client/client_config';
+import { PLATFORM, platformParameterGet } from 'glov/client/client_config';
 import { applyCopy, effectsQueue, registerShader } from 'glov/client/effects';
 import * as engine from 'glov/client/engine';
 import { getFrameDt, getFrameTimestamp } from 'glov/client/engine';
@@ -1107,11 +1107,12 @@ function statePlay(dt: number): void {
   })) {
     help_visible = !help_visible;
   }
+  buttons_y += uiButtonHeight() + 2;
 
   if (buttonImage({
     img: autoAtlas('gfx', settings.volume_music ? 'music_on' : 'music_off'),
     x: buttons_x,
-    y: round(camera2d.y1()) - uiButtonHeight() - 1,
+    y: PLATFORM === 'itch' || true ? buttons_y : round(camera2d.y1()) - uiButtonHeight() - 1,
     z: Z.HELP + 1,
     shrink: 1,
     hotkeys: [KEYS.M],
